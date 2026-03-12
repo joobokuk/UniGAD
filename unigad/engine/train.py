@@ -1,7 +1,7 @@
 """
 unigad/engine/train.py
 -----------------------
-표준 학습 루프 (train_uniadet) 및 JVM patch-crop 학습 루프 (train_jvm_patch).
+표준 학습 루프 (train_uniadet) 및 Custom patch-crop 학습 루프 (train_custom_patch).
 
 개선사항:
   - wrap_multigpu()를 통해 DataParallel 자동 적용 (Multi-GPU 지원)
@@ -147,7 +147,7 @@ def train_uniadet(
 # ─────────────────────────────────────────────────────────────────────
 # JVM Patch-Crop 학습
 # ─────────────────────────────────────────────────────────────────────
-def train_jvm_patch(
+def train_custom_patch(
     model:          nn.Module,
     dataloader:     DataLoader,
     device:         torch.device,
@@ -155,7 +155,7 @@ def train_jvm_patch(
     lr:             float = 1e-3,
     weight_decay:   float = 1e-4,
     patience:       int   = 7,
-    ckpt_path:      str   = "checkpoints/ckpt_jvm_patch.pth",
+    ckpt_path:      str   = "checkpoints/ckpt_custom_patch.pth",
 ) -> None:
     """
     JVM Patch-Crop UniADet 학습 (MultiGPU 래퍼 전달 시 그대로 사용).
@@ -180,7 +180,7 @@ def train_jvm_patch(
         )
 
     print(f"\n{'='*60}")
-    print(f"  train_jvm_patch | epochs={epochs}, lr={lr}, patience={patience}")
+    print(f"  train_custom_patch | epochs={epochs}, lr={lr}, patience={patience}")
     print(f"  GPUs={torch.cuda.device_count()}")
     print(f"{'='*60}")
 

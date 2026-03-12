@@ -24,8 +24,8 @@ UniGAD/
 ├── scripts/
 │   ├── train_standard.py    4개 데이터셋 표준 학습
 │   ├── eval_crosseval.py    4×4 크로스 평가
-│   ├── train_eval_jvm_patch.py       Custom Patch-Crop 학습+추론
-│   └── eval_jvm_patch_crosseval.py   사전 가중치 → Custom Patch 추론
+│   ├── train_eval_custom_patch.py    Custom Patch-Crop 학습+추론
+│   └── eval_custom_patch_crosseval.py 사전 가중치 → Custom Patch 추론
 ├── tools/
 │   ├── make_golden_template.py   Golden Template 생성
 │   ├── generate_heatmap.py       히트맵 생성
@@ -279,7 +279,7 @@ python scripts/eval_crosseval.py \
 ### 학습 및 추론 실행
 
 ```bash
-python scripts/train_eval_jvm_patch.py \
+python scripts/train_eval_custom_patch.py \
     --jvm_root    /path/to/Custom \
     --golden_root /path/to/CustomGolden \
     --ckpt_path   checkpoints/ckpt_custom_patch.pth \
@@ -289,7 +289,7 @@ python scripts/train_eval_jvm_patch.py \
 학습을 건너뛰고 추론만:
 
 ```bash
-python scripts/train_eval_jvm_patch.py \
+python scripts/train_eval_custom_patch.py \
     --jvm_root    /path/to/Custom \
     --golden_root /path/to/CustomGolden \
     --skip_train
@@ -300,7 +300,7 @@ python scripts/train_eval_jvm_patch.py \
 별도 학습 없이 기존 모델로 Custom 데이터를 patch-crop 방식으로 추론할 수 있습니다.
 
 ```bash
-python scripts/eval_jvm_patch_crosseval.py \
+python scripts/eval_custom_patch_crosseval.py \
     --jvm_root    /path/to/Custom \
     --golden_root /path/to/CustomGolden \
     --ckpt_dir    checkpoints \

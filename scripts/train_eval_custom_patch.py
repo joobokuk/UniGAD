@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-scripts/train_eval_jvm_patch.py
-================================
-JVM_mvtec 전용 Patch-Crop 학습 + 추론 (Multi-GPU 지원).
+scripts/train_eval_custom_patch.py
+====================================
+Custom 데이터셋 전용 Patch-Crop 학습 + 추론 (Multi-GPU 지원).
 
 사용 예시:
-    python scripts/train_eval_jvm_patch.py \\
-        --jvm_root    /path/to/JVM_mvtec \\
-        --golden_root /path/to/JVM_goldentemplate \\
+    python scripts/train_eval_custom_patch.py \\
+        --custom_root /path/to/Custom \\
+        --golden_root /path/to/CustomGolden \\
         --epochs 50 --batch_size 384 --patience 5
 
 추론만:
-    python scripts/train_eval_jvm_patch.py --skip_train
+    python scripts/train_eval_custom_patch.py --skip_train
 """
 from __future__ import annotations
 
@@ -27,9 +27,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from unigad.models.uniadet      import UniADet
 from unigad.models.multigpu     import wrap_multigpu, inner
-from unigad.datasets.jvm_patch  import JVMPatchTrainDataset, make_weighted_sampler
-from unigad.engine.train        import train_jvm_patch
-from unigad.engine.evaluate     import eval_jvm_patch
+from unigad.datasets.custom_patch import CustomPatchTrainDataset, make_weighted_sampler
+from unigad.engine.train        import train_custom_patch
+from unigad.engine.evaluate     import eval_custom_patch
 from unigad.engine.memory_bank  import build_memory_banks_per_pos
 from unigad.transforms          import EXTRACT_LAYERS, PATCH_SIZE_DINOV3
 from unigad.utils.checkpoint    import load_ckpt, should_skip
@@ -41,11 +41,11 @@ DATA_ROOT = BASE.parent / "Data"
 
 def parse_args():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    p.add_argument("--jvm_root",       default=str(DATA_ROOT / "JVM_mvtec"))
+    p.add_argument("--custom_root",    default=str(DATA_ROOT / "Custom"))
     p.add_argument("--support_root",   default=None)
     p.add_argument("--golden_root",    default=str(DATA_ROOT / "JVM_goldentemplate"))
-    p.add_argument("--ckpt_path",      default=str(BASE / "checkpoints" / "ckpt_jvm_patch.pth"))
-    p.add_argument("--result_path",    default=str(BASE / "results_jvm_patch.json"))
+    p.add_argument("--ckpt_path",      default=str(BASE / "checkpoints" / "ckpt_custom_patch.pth"))
+    p.add_argument("--result_path",    default=str(BASE / "results_custom_patch.json"))
     p.add_argument("--heatmap_dir",    default=None)
     p.add_argument("--backbone",        default="dinov3", choices=["dinov3", "dinov2"])
     p.add_argument("--dinov3_repo",     default=str(BASE.parent / "UniADet" / "dinov3"))
@@ -86,7 +86,7 @@ def main():
             print(f"[Skip Train] 체크포인트 존재 → 로드: {args.ckpt_path}")
             load_ckpt(model, args.ckpt_path)
         else:
-            train_ds = JVMPatchTrainDataset(args.jvm_root, use_test=args.use_test)
+            train_ds = CustomPatchTrainDataset(args.custom_root, use_test=args.use_test)
             sampler  = make_weighted_sampler(train_ds)
             n        = len(train_ds)
             eff_bs   = min(args.batch_size, n)
@@ -95,7 +95,7 @@ def main():
                 num_workers=args.num_workers, pin_memory=True,
                 drop_last=(n >= args.batch_size),
             )
-            train_jvm_patch(
+            train_custom_patch(
                 model, train_dl, device,
                 epochs=args.epochs, lr=args.lr,
                 weight_decay=args.weight_decay, patience=args.patience,
@@ -108,19 +108,19 @@ def main():
             load_ckpt(model, args.ckpt_path)
 
         results = {}
-        support = args.support_root or args.jvm_root
+        support = args.support_root or args.custom_root
 
         # [A] Zero-shot
-        results["zero_shot"] = eval_jvm_patch(
-            model, args.jvm_root, device,
+        results["zero_shot"] = eval_custom_patch(
+            model, args.custom_root, device,
             mode_name="zero_shot", save_heatmap_dir=args.heatmap_dir,
         )
 
         # [B] Standard Few-shot
         std_banks = build_memory_banks_per_pos(model, support, device, args.n_shot)
         if std_banks:
-            results["few_shot_standard"] = eval_jvm_patch(
-                model, args.jvm_root, device,
+            results["few_shot_standard"] = eval_custom_patch(
+                model, args.custom_root, device,
                 memory_banks=std_banks, mode_name="few_shot_standard",
                 save_heatmap_dir=args.heatmap_dir,
             )
@@ -129,8 +129,8 @@ def main():
         if args.golden_root and Path(args.golden_root).exists():
             gold_banks = build_memory_banks_per_pos(model, args.golden_root, device, args.n_shot)
             if gold_banks:
-                results["few_shot_golden"] = eval_jvm_patch(
-                    model, args.jvm_root, device,
+                results["few_shot_golden"] = eval_custom_patch(
+                    model, args.custom_root, device,
                     memory_banks=gold_banks, mode_name="few_shot_golden",
                     save_heatmap_dir=args.heatmap_dir,
                 )

@@ -1,5 +1,5 @@
 """
-unigad/datasets/jvm_patch.py
+unigad/datasets/custom_patch.py
 -----------------------------
 JVM_mvtec 전용 Patch-Crop 학습 데이터셋.
 
@@ -40,7 +40,7 @@ _MASK_TF = transforms.Compose([
 ])
 
 
-class JVMPatchTrainDataset(Dataset):
+class CustomPatchTrainDataset(Dataset):
     """
     Args:
         root     : JVM_mvtec 루트 경로

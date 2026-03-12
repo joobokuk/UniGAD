@@ -1,7 +1,7 @@
 """
 unigad/engine/evaluate.py
 --------------------------
-표준 평가 루프 (evaluate_uniadet) 및 JVM patch 평가 루프 (eval_jvm_patch).
+표준 평가 루프 (evaluate_uniadet) 및 Custom patch 평가 루프 (eval_custom_patch).
 """
 from __future__ import annotations
 
@@ -122,7 +122,7 @@ def evaluate_uniadet(
 # JVM Patch-Crop 평가
 # ─────────────────────────────────────────────────────────────────────
 @torch.no_grad()
-def eval_jvm_patch(
+def eval_custom_patch(
     model:            nn.Module,
     jvm_root:         str,
     device:           torch.device,

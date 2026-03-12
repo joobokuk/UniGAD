@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-scripts/eval_jvm_patch_crosseval.py
-=====================================
+scripts/eval_custom_patch_crosseval.py
+========================================
 MVTec / VisA / BTAD 학습 가중치를 각각 로드하여
-JVM_mvtec 이미지를 Patch-Crop 방식으로 추론하고 지표를 비교한다.
+Custom 이미지를 Patch-Crop 방식으로 추론하고 지표를 비교한다.
 
 사용 예시:
-    python scripts/eval_jvm_patch_crosseval.py
-    python scripts/eval_jvm_patch_crosseval.py --models mvtec visa
+    python scripts/eval_custom_patch_crosseval.py
+    python scripts/eval_custom_patch_crosseval.py --models mvtec visa
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from unigad.models.uniadet      import UniADet
 from unigad.models.multigpu     import wrap_multigpu
-from unigad.engine.evaluate     import eval_jvm_patch
+from unigad.engine.evaluate     import eval_custom_patch
 from unigad.engine.memory_bank  import build_memory_banks_per_pos
 from unigad.transforms          import EXTRACT_LAYERS, PATCH_SIZE_DINOV3
 from unigad.utils.checkpoint    import load_ckpt
@@ -44,7 +44,7 @@ def parse_args():
     p.add_argument("--support_root",   default=None)
     p.add_argument("--golden_root",    default=str(DATA_ROOT / "JVM_goldentemplate"))
     p.add_argument("--ckpt_dir",       default=str(BASE / "checkpoints"))
-    p.add_argument("--result_path",    default=str(BASE / "results_jvm_patch_crosseval.json"))
+    p.add_argument("--result_path",    default=str(BASE / "results_custom_patch_crosseval.json"))
     p.add_argument("--models",         nargs="+",
                    default=list(CKPT_FILES.keys()),
                    choices=list(CKPT_FILES.keys()))
@@ -86,14 +86,14 @@ def main():
         model_results = {}
 
         # [A] Zero-shot
-        model_results["zero_shot"] = eval_jvm_patch(
+        model_results["zero_shot"] = eval_custom_patch(
             model, args.jvm_root, device, mode_name="zero_shot",
         )
 
         # [B] Standard Few-shot
         std_banks = build_memory_banks_per_pos(model, support, device, args.n_shot)
         if std_banks:
-            model_results["few_shot_standard"] = eval_jvm_patch(
+            model_results["few_shot_standard"] = eval_custom_patch(
                 model, args.jvm_root, device,
                 memory_banks=std_banks, mode_name="few_shot_standard",
             )
@@ -104,7 +104,7 @@ def main():
                 model, args.golden_root, device, args.n_shot,
             )
             if gold_banks:
-                model_results["few_shot_golden"] = eval_jvm_patch(
+                model_results["few_shot_golden"] = eval_custom_patch(
                     model, args.jvm_root, device,
                     memory_banks=gold_banks, mode_name="few_shot_golden",
                 )
