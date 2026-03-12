@@ -14,7 +14,6 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from unigad.models.multigpu import inner, patch_feat_to_list
-from unigad.transforms import FINAL_SIZE, PATCH_SIZE_DINOV3
 from unigad.utils.patch import crop_patch, N_PATCHES, FINAL_SIZE as PATCH_FINAL
 from torchvision import transforms
 from PIL import Image

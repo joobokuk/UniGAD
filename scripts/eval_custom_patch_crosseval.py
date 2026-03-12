@@ -35,12 +35,13 @@ CKPT_FILES = {
     "mvtec": "ckpt_trained_on_mvtec.pth",
     "visa":  "ckpt_trained_on_visa.pth",
     "btad":  "ckpt_trained_on_btad.pth",
+    "custom_patch": "ckpt_custom_patch.pth"
 }
 
 
 def parse_args():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    p.add_argument("--jvm_root",       default=str(DATA_ROOT / "JVM_mvtec"))
+    p.add_argument("--custom_root",       default=str(DATA_ROOT / "JVM_mvtec"))
     p.add_argument("--support_root",   default=None)
     p.add_argument("--golden_root",    default=str(DATA_ROOT / "JVM_goldentemplate"))
     p.add_argument("--ckpt_dir",       default=str(BASE / "checkpoints"))
@@ -49,9 +50,9 @@ def parse_args():
                    default=list(CKPT_FILES.keys()),
                    choices=list(CKPT_FILES.keys()))
     p.add_argument("--backbone",        default="dinov3", choices=["dinov3", "dinov2"])
-    p.add_argument("--dinov3_repo",     default=str(BASE.parent / "UniADet" / "dinov3"))
+    p.add_argument("--dinov3_repo",     default=str(BASE / "dinov3"))
     p.add_argument("--dinov3_weights",  default=str(
-        BASE.parent / "UniADet" / "dinov3" / "pretrained"
+        BASE / "dinov3" / "pretrained"
         / "dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth"))
     p.add_argument("--layers",          nargs="+", type=int, default=EXTRACT_LAYERS)
     p.add_argument("--n_shot",          type=int, default=4)
@@ -63,7 +64,18 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"장치: {device} | GPU: {torch.cuda.device_count()}")
 
-    support = args.support_root or args.jvm_root
+    support = args.support_root or args.custom_root
+
+    # ── DINOv3 백본은 모든 모델에서 공유 → 1회만 로딩 ─────────────────
+    print("\n[Init] DINOv3 백본 로딩")
+    model = UniADet(
+        layers=args.layers, backbone=args.backbone,
+        dinov3_repo=args.dinov3_repo, dinov3_weights=args.dinov3_weights,
+        patch_size=PATCH_SIZE_DINOV3,
+    )
+    model = wrap_multigpu(model)
+    model.to(device)
+
     all_results: dict[str, dict] = {}
 
     for model_name in args.models:
@@ -75,26 +87,20 @@ def main():
         print(f"  모델: {model_name.upper()} | {ckpt_path.name}")
         print(f"{'='*60}")
 
-        model = UniADet(
-            layers=args.layers, backbone=args.backbone,
-            dinov3_repo=args.dinov3_repo, dinov3_weights=args.dinov3_weights,
-            patch_size=PATCH_SIZE_DINOV3,
-        )
-        model = wrap_multigpu(model)
+        # classifiers 가중치만 교체 (백본은 그대로)
         load_ckpt(model, str(ckpt_path))
-        model.to(device)
         model_results = {}
 
         # [A] Zero-shot
         model_results["zero_shot"] = eval_custom_patch(
-            model, args.jvm_root, device, mode_name="zero_shot",
+            model, args.custom_root, device, mode_name="zero_shot",
         )
 
         # [B] Standard Few-shot
         std_banks = build_memory_banks_per_pos(model, support, device, args.n_shot)
         if std_banks:
             model_results["few_shot_standard"] = eval_custom_patch(
-                model, args.jvm_root, device,
+                model, args.custom_root, device,
                 memory_banks=std_banks, mode_name="few_shot_standard",
             )
 
@@ -105,16 +111,14 @@ def main():
             )
             if gold_banks:
                 model_results["few_shot_golden"] = eval_custom_patch(
-                    model, args.jvm_root, device,
+                    model, args.custom_root, device,
                     memory_banks=gold_banks, mode_name="few_shot_golden",
                 )
 
         all_results[model_name] = model_results
-        del model
-        torch.cuda.empty_cache()
 
     # 요약 출력 (cross_summary 형식에 맞게 래핑)
-    wrapped = {k: {"jvm": {mk: [mv] for mk, mv in v.items()}}
+    wrapped = {k: {"custom": {mk: [mv] for mk, mv in v.items()}}
                for k, v in all_results.items()}
     print_cross_summary(wrapped)
 

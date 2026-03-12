@@ -48,9 +48,9 @@ def parse_args():
     p.add_argument("--result_path",    default=str(BASE / "results_custom_patch.json"))
     p.add_argument("--heatmap_dir",    default=None)
     p.add_argument("--backbone",        default="dinov3", choices=["dinov3", "dinov2"])
-    p.add_argument("--dinov3_repo",     default=str(BASE.parent / "UniADet" / "dinov3"))
+    p.add_argument("--dinov3_repo",     default=str(BASE / "dinov3"))
     p.add_argument("--dinov3_weights",  default=str(
-        BASE.parent / "UniADet" / "dinov3" / "pretrained"
+        BASE / "dinov3" / "pretrained"
         / "dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth"))
     p.add_argument("--layers",          nargs="+", type=int, default=EXTRACT_LAYERS)
     p.add_argument("--epochs",          type=int,   default=30)
