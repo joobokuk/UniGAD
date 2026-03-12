@@ -338,8 +338,7 @@ python scripts/generate_patch_heatmap.py \
     --ckpt_path   checkpoints/ckpt_custom_patch.pth \
     --mode        both
 ```
-<img src="samples/mask_sample.png" width="200" height="200"/>
-<img src="samples/heatmap_sample.png" width="200" height="200"/>
+<img src="samples/mask_sample.png" width="200" height="200"/> <img src="samples/heatmap_sample.png" width="200" height="200"/>
 
 ---
 
