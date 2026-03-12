@@ -286,7 +286,7 @@ python scripts/train_eval_custom_patch.py \
     --custom_root /path/to/Custom \
     --golden_root /path/to/CustomGolden \
     --ckpt_path   checkpoints/ckpt_custom_patch.pth \
-    --epochs 50 --batch_size 384 --patience 5
+    --epochs 50 --batch_size 256 --patience 5
 ```
 
 학습을 건너뛰고 추론만:
@@ -330,6 +330,16 @@ python tools/generate_heatmap.py \
     --dinov3_repo  dinov3 \
     --dinov3_weights dinov3/pretrained/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth
 ```
+(추가) patch 단위로 추론한 이미지 히트맵
+```bash
+python scripts/generate_patch_heatmap.py \
+    --custom_root /path/to/Custom \
+    --golden_root /path/to/CustomGolden \
+    --ckpt_path   checkpoints/ckpt_custom_patch.pth \
+    --mode        both
+```
+<img src="samples/mask_sample.png" width="200" height="200"/>
+<img src="samples/heatmap_sample.png" width="200" height="200"/>
 
 ---
 
