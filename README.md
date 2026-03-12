@@ -144,7 +144,8 @@ python scripts/train_standard.py \
     --ckpt_dir    checkpoints \
     --dinov3_repo dinov3 \
     --dinov3_weights dinov3/pretrained/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth \
-    --epochs 50 --batch_size 256 --patience 5
+    --epochs 50 --batch_size 256 --patience 5 \
+    --train_targets mvtec visa jvm btad
 ```
 
 학습 완료 후 저장되는 체크포인트 (best epoch 가중치):
@@ -187,6 +188,8 @@ python scripts/eval_crosseval.py \
     --btad_root   /path/to/BTAD \
     --mode both \
     --few_shot_ks 1 2 4 \
+    --ckpts       mvtec visa jvm btad \
+    --eval_datasets mvtec visa jvm btad \
     --result_path results_crosseval.json
 ```
 
@@ -219,10 +222,10 @@ Few-shot 메모리 뱅크 입력으로 사용합니다.
 
 ```bash
 python tools/make_golden_template.py \
-    --jvm_root  /path/to/Custom \
-    --out_root  /path/to/CustomGolden \
-    --n_select  10 \
-    --n_trials  4
+    --jvm_root    /path/to/Custom \
+    --output_root /path/to/CustomGolden \
+    --n_select    10 \
+    --n_trials    4
 ```
 
 - `--n_select`: 시행당 랜덤 선택 이미지 수 (기본: 10장)
@@ -280,7 +283,7 @@ python scripts/eval_crosseval.py \
 
 ```bash
 python scripts/train_eval_custom_patch.py \
-    --jvm_root    /path/to/Custom \
+    --custom_root /path/to/Custom \
     --golden_root /path/to/CustomGolden \
     --ckpt_path   checkpoints/ckpt_custom_patch.pth \
     --epochs 50 --batch_size 384 --patience 5
@@ -290,7 +293,7 @@ python scripts/train_eval_custom_patch.py \
 
 ```bash
 python scripts/train_eval_custom_patch.py \
-    --jvm_root    /path/to/Custom \
+    --custom_root /path/to/Custom \
     --golden_root /path/to/CustomGolden \
     --skip_train
 ```
@@ -301,7 +304,7 @@ python scripts/train_eval_custom_patch.py \
 
 ```bash
 python scripts/eval_custom_patch_crosseval.py \
-    --jvm_root    /path/to/Custom \
+    --custom_root    /path/to/Custom \
     --golden_root /path/to/CustomGolden \
     --ckpt_dir    checkpoints \
     --models      mvtec visa btad
