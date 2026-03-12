@@ -49,7 +49,7 @@ def parse_args():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("--mvtec_root", default=str(DATA_ROOT / "MVTec"))
     p.add_argument("--visa_root",  default=str(DATA_ROOT / "VisA"))
-    p.add_argument("--jvm_root",   default=str(DATA_ROOT / "JVM_mvtec"))
+    p.add_argument("--custom_root",   default=str(DATA_ROOT / "JVM_mvtec"))
     p.add_argument("--btad_root",  default=str(DATA_ROOT / "BTAD"))
     p.add_argument("--ckpt_dir",   default=str(BASE / "checkpoints"))
     p.add_argument("--backbone",   default="dinov3", choices=["dinov3", "dinov2"])

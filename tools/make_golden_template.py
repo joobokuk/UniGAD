@@ -76,7 +76,7 @@ def discover_classes(jvm_root: Path) -> list[str]:
 
 def main():
     parser = argparse.ArgumentParser(description="JVM Golden Template Generator")
-    parser.add_argument("--jvm_root",    type=str, default="JVM_mvtec",
+    parser.add_argument("--custom_root",    type=str, default="JVM_mvtec",
                         help="JVM_mvtec 루트 경로")
     parser.add_argument("--output_root", type=str, default="JVM_goldentemplate",
                         help="출력 폴더 (기본: JVM_goldentemplate)")

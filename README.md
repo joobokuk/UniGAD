@@ -139,7 +139,7 @@ wget -O dinov3/pretrained/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth \
 python scripts/train_standard.py \
     --mvtec_root  /path/to/MVTec \
     --visa_root   /path/to/VisA \
-    --jvm_root    /path/to/Custom \
+    --custom_root    /path/to/Custom \
     --btad_root   /path/to/BTAD \
     --ckpt_dir    checkpoints \
     --dinov3_repo dinov3 \
@@ -184,7 +184,7 @@ python scripts/eval_crosseval.py \
     --ckpt_dir    checkpoints \
     --mvtec_root  /path/to/MVTec \
     --visa_root   /path/to/VisA \
-    --jvm_root    /path/to/Custom \
+    --custom_root    /path/to/Custom \
     --btad_root   /path/to/BTAD \
     --mode both \
     --few_shot_ks 1 2 4 \
@@ -222,7 +222,7 @@ Few-shot 메모리 뱅크 입력으로 사용합니다.
 
 ```bash
 python tools/make_golden_template.py \
-    --jvm_root    /path/to/Custom \
+    --custom_root    /path/to/Custom \
     --output_root /path/to/CustomGolden \
     --n_select    10 \
     --n_trials    4
@@ -251,7 +251,7 @@ CustomGolden/
 
 ```bash
 python scripts/eval_crosseval.py \
-    --jvm_root    /path/to/CustomGolden \   # support 소스를 Golden으로 교체
+    --custom_root    /path/to/CustomGolden \   # support 소스를 Golden으로 교체
     --mode few_shot \
     --few_shot_ks 4
 ```
