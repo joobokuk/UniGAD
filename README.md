@@ -1,12 +1,12 @@
 # UniGAD — Universal Generalized Anomaly Detection
 
-UniADet 논문 기반 구현체로, **언어 없이(Language-Free)** DINOv3 백본의 특징만을 활용하여  
-산업 이상 탐지(Anomaly Detection)를 수행하는 프레임워크입니다.
+DINOv3 백본의 특징만을 활용하여 산업 이상 탐지(Anomaly Detection)를 수행하는 프레임워크입니다.
 
 - **Zero-shot 추론**: 학습된 `W_cls` / `W_seg` 방향 벡터와의 코사인 유사도만으로 판정
 - **Few-shot 추론**: 정상 이미지 소수 장에서 메모리 뱅크를 구성하여 NN 거리 점수를 융합
 - **Multi-GPU 학습/추론**: `nn.DataParallel` 기반 (DataParallel-safe `HooklessBackbone` 사용)
 - **Custom 데이터셋 지원**: MVTec 포맷으로 구성하면 바로 사용 가능
+- **Golden Template 지원**: 이상적인 이미지 포맷을 Memory bank로 사용 가능
 
 ---
 
@@ -345,5 +345,6 @@ python scripts/generate_patch_heatmap.py \
 
 ## 참고 자료
 
+- UniADet: [UniADet Github](https://github.com/gaobb/UniADet)
 - DINOv3 공식 저장소: [https://github.com/facebookresearch/dinov3](https://github.com/facebookresearch/dinov3)
 - DINOv3 가중치 다운로드: [https://ai.meta.com/resources/models-and-libraries/dinov3-downloads/](https://ai.meta.com/resources/models-and-libraries/dinov3-downloads/)
