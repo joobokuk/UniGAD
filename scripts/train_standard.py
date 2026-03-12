@@ -64,8 +64,8 @@ def parse_args():
     p.add_argument("--patience",    type=int,   default=5)
     p.add_argument("--num_workers", type=int,   default=8)
     p.add_argument("--train_targets", nargs="+",
-                   choices=["mvtec", "visa", "jvm", "btad"],
-                   default=["mvtec", "visa", "jvm", "btad"])
+                   choices=["mvtec", "visa", "custom", "btad"],
+                   default=["mvtec", "visa", "custom", "btad"])
     p.add_argument("--mvtec_categories", nargs="+", default=MVTEC_CATEGORIES)
     p.add_argument("--force", action="store_true")
     return p.parse_args()
@@ -134,7 +134,7 @@ def main():
                           epochs=args.epochs, lr=args.lr, patience=args.patience,
                           ckpt_path=ckpt, img_size=img_size, patch_size=patch_size)
 
-    if "jvm" in args.train_targets:
+    if "custom" in args.train_targets:
         ckpt = str(Path(args.ckpt_dir) / "ckpt_trained_on_jvm.pth")
         if not should_skip(ckpt, args.force):
             cats = [d.name for d in sorted(Path(args.jvm_root).iterdir())

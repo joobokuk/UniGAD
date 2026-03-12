@@ -44,7 +44,7 @@ DATA_ROOT = BASE.parent / "Data"
 CKPT_FILES = {
     "mvtec": "ckpt_trained_on_mvtec.pth",
     "visa":  "ckpt_trained_on_visa.pth",
-    "jvm":   "ckpt_trained_on_jvm.pth",
+    "custom":   "ckpt_trained_on_jvm.pth",
     "btad":  "ckpt_trained_on_btad.pth",
 }
 
@@ -75,8 +75,8 @@ def parse_args():
                    choices=list(CKPT_FILES.keys()),
                    default=list(CKPT_FILES.keys()))
     p.add_argument("--eval_datasets", nargs="+",
-                   choices=["mvtec", "visa", "jvm", "btad"],
-                   default=["mvtec", "visa", "jvm", "btad"])
+                   choices=["mvtec", "visa", "custom", "btad"],
+                   default=["mvtec", "visa", "custom", "btad"])
     return p.parse_args()
 
 

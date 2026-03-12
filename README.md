@@ -188,8 +188,8 @@ python scripts/eval_crosseval.py \
     --btad_root   /path/to/BTAD \
     --mode both \
     --few_shot_ks 1 2 4 \
-    --ckpts       mvtec visa jvm btad \
-    --eval_datasets mvtec visa jvm btad \
+    --ckpts       mvtec visa custom btad \
+    --eval_datasets mvtec visa custom btad \
     --result_path results_crosseval.json
 ```
 
