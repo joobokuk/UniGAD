@@ -1,0 +1,22 @@
+# DINOv3 서드파티 (별도 repo)
+dinov3/
+
+# 체크포인트 (용량 큼)
+checkpoints/
+checkpoints_*/
+*.pth
+
+# 결과 JSON
+results_*.json
+
+# Python 캐시
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Jupyter
+*.ipynb_checkpoints/
+
+# 히트맵/출력 이미지
+outputs/
