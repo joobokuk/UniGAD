@@ -43,7 +43,7 @@ def parse_args():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("--custom_root",    default=str(DATA_ROOT / "Custom"))
     p.add_argument("--support_root",   default=None)
-    p.add_argument("--golden_root",    default=str(DATA_ROOT / "JVM_goldentemplate"))
+    p.add_argument("--golden_root",    default=str(DATA_ROOT / "Custom_goldentemplate"))
     p.add_argument("--ckpt_path",      default=str(BASE / "checkpoints" / "ckpt_custom_patch.pth"))
     p.add_argument("--result_path",    default=str(BASE / "results_custom_patch.json"))
     p.add_argument("--heatmap_dir",    default=None)

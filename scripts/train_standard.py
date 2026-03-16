@@ -2,17 +2,17 @@
 """
 scripts/train_standard.py
 ==========================
-MVTec / VisA / JVM / BTAD 데이터로 4개 모델을 각각 학습하여
+MVTec / VisA / Custom(MVTec 형식) / BTAD 데이터로 4개 모델을 각각 학습하여
 체크포인트를 저장한다. 이미 체크포인트가 존재하면 학습을 건너뛴다.
 
 사용 예시:
     python scripts/train_standard.py \\
         --ckpt_dir checkpoints \\
         --epochs 50 --batch_size 256 --patience 5 \\
-        --train_targets mvtec visa jvm btad
+        --train_targets mvtec visa custom btad
 
 특정 데이터셋만 재학습:
-    python scripts/train_standard.py --train_targets mvtec --force
+    python scripts/train_standard.py --train_targets mvtec custom --force
 """
 from __future__ import annotations
 
@@ -49,7 +49,10 @@ def parse_args():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("--mvtec_root", default=str(DATA_ROOT / "MVTec"))
     p.add_argument("--visa_root",  default=str(DATA_ROOT / "VisA"))
-    p.add_argument("--custom_root",   default=str(DATA_ROOT / "JVM_mvtec"))
+    p.add_argument("--custom_root",   default=str(DATA_ROOT / "Custom"),
+                    help="MVTec 형식 custom 데이터셋 루트 (예: Data/Custom, Data/MyDataset)")
+    p.add_argument("--custom_ckpt_name", type=str, default=None,
+                    help="custom 체크포인트 파일명 접미사 (기본: custom_root 폴더명 → ckpt_trained_on_<폴더명>.pth)")
     p.add_argument("--btad_root",  default=str(DATA_ROOT / "BTAD"))
     p.add_argument("--ckpt_dir",   default=str(BASE / "checkpoints"))
     p.add_argument("--backbone",   default="dinov3", choices=["dinov3", "dinov2"])
@@ -135,14 +138,15 @@ def main():
                           ckpt_path=ckpt, img_size=img_size, patch_size=patch_size)
 
     if "custom" in args.train_targets:
-        ckpt = str(Path(args.ckpt_dir) / "ckpt_trained_on_jvm.pth")
+        ckpt_name = args.custom_ckpt_name or Path(args.custom_root).name
+        ckpt = str(Path(args.ckpt_dir) / f"ckpt_trained_on_{ckpt_name}.pth")
         if not should_skip(ckpt, args.force):
-            cats = [d.name for d in sorted(Path(args.jvm_root).iterdir())
+            cats = [d.name for d in sorted(Path(args.custom_root).iterdir())
                     if d.is_dir() and (d / "train").exists()]
             datasets = []
             for cat in cats:
                 try:
-                    datasets.append(MVTecADDataset(args.jvm_root, cat, "train",
+                    datasets.append(MVTecADDataset(args.custom_root, cat, "train",
                                                    transform=tf, img_size=img_size))
                 except RuntimeError as e:
                     print(f"  [Skip] {cat}: {e}")

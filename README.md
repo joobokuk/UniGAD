@@ -98,7 +98,7 @@ wget -O dinov3/pretrained/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth \
 | MVTec AD | MVTec 포맷 |
 | VisA | VisA 포맷 (`Data/Images/Normal`, `Data/Images/Anomaly`) |
 | BTAD | BTAD 포맷 (`ok`/`ko` 폴더) |
-| **Custom** | **MVTec 포맷과 동일하게 구성하면 바로 사용 가능** |
+| **Custom** | **MVTec 포맷과 동일하게 구성하면 바로 사용 가능 (폴더 이름 무관)** |
 
 ### MVTec 포맷 (Custom 데이터셋 기준)
 
@@ -139,13 +139,13 @@ wget -O dinov3/pretrained/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth \
 python scripts/train_standard.py \
     --mvtec_root  /path/to/MVTec \
     --visa_root   /path/to/VisA \
-    --custom_root    /path/to/Custom \
+    --custom_root /path/to/Custom \
     --btad_root   /path/to/BTAD \
     --ckpt_dir    checkpoints \
     --dinov3_repo dinov3 \
     --dinov3_weights dinov3/pretrained/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth \
     --epochs 50 --batch_size 256 --patience 5 \
-    --train_targets mvtec visa jvm btad
+    --train_targets mvtec visa custom btad
 ```
 
 학습 완료 후 저장되는 체크포인트 (best epoch 가중치):
@@ -181,16 +181,16 @@ checkpoints/
 
 ```bash
 python scripts/eval_crosseval.py \
-    --ckpt_dir    checkpoints \
-    --mvtec_root  /path/to/MVTec \
-    --visa_root   /path/to/VisA \
-    --custom_root    /path/to/Custom \
-    --btad_root   /path/to/BTAD \
+    --ckpt_dir      checkpoints \
+    --mvtec_root    /path/to/MVTec \
+    --visa_root     /path/to/VisA \
+    --custom_root   /path/to/Custom \
+    --btad_root     /path/to/BTAD \
     --mode both \
     --few_shot_ks 1 2 4 \
-    --ckpts       mvtec visa custom btad \
+    --ckpts         mvtec visa custom btad \
     --eval_datasets mvtec visa custom btad \
-    --result_path results_crosseval.json
+    --result_path   results_crosseval.json
 ```
 
 ### 5-2. 전체 파이프라인 (학습 → 평가 순서)
@@ -245,16 +245,10 @@ CustomGolden/
         golden_04.png
 ```
 
-### Golden Template으로 평가 실행
+### Golden Template 활용
 
-크로스 평가 시:
-
-```bash
-python scripts/eval_crosseval.py \
-    --custom_root    /path/to/CustomGolden \   # support 소스를 Golden으로 교체
-    --mode few_shot \
-    --few_shot_ks 4
-```
+- **히트맵 생성**: `generate_heatmap.py`에서 `--support_root /path/to/Custom_goldentemplate`를 지정하면 few-shot 메모리 뱅크로 Golden Template을 사용한다.
+- **크로스 평가**: `eval_crosseval.py`는 각 데이터셋의 `train/good`를 few-shot support로 사용한다.
 
 ---
 
@@ -322,23 +316,20 @@ python scripts/eval_custom_patch_crosseval.py \
 
 ## 8. 히트맵 생성
 
+학습된 가중치로 이상 영역을 JET 컬러 히트맵으로 시각화한다. MVTec/VisA/BTAD 및 MVTec 형식 custom 데이터셋 모두 지원한다.
+
 ```bash
 python tools/generate_heatmap.py \
     --dataset_root /path/to/Custom \
-    --ckpt_path    checkpoints/ckpt_trained_on_mvtec.pth \
-    --output_dir   outputs/heatmaps \
-    --dinov3_repo  dinov3 \
-    --dinov3_weights dinov3/pretrained/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth
+    --load_path    checkpoints/ckpt_trained_on_Custom.pth \
+    --output_root  outputs/heatmaps
 ```
-(추가) patch 단위로 추론한 이미지 히트맵
-```bash
-python scripts/generate_patch_heatmap.py \
-    --custom_root /path/to/Custom \
-    --golden_root /path/to/CustomGolden \
-    --ckpt_path   checkpoints/ckpt_custom_patch.pth \
-    --mode        both
-```
-<img src="samples/mask_sample.png" width="200" height="200"/> <img src="samples/heatmap_sample.png" width="200" height="200"/>
+
+- `--heatmap_mode full_image`: 이미지 전체를 한 번에 추론 (기본, 빠름)
+- `--heatmap_mode patch_tiled`: 이미지를 타일 단위로 잘라 추론 후 병합 (원본 해상도에 가깝게 확인)
+- Few-shot용 Golden Template 사용: `--support_root /path/to/Custom_goldentemplate --mode both`
+
+Custom Patch-Crop 방식으로 학습한 모델의 패치 단위 히트맵은 `scripts/train_eval_custom_patch.py`의 `--heatmap_dir` 옵션 또는 `eval_custom_patch_crosseval.py`를 참고한다.
 
 ---
 

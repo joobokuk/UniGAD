@@ -3,8 +3,9 @@ generate_heatmap.py
 ====================
 
 목적:
-  UniADet (uniadet_paper_aligned) 학습 가중치를 로드하여
-  MVTec / VisA / BTAD 어떤 포맷의 데이터셋에도 이상 히트맵을 생성한다.
+  UniGAD 학습 가중치를 로드하여
+  MVTec / VisA / BTAD 등 어떤 포맷의 데이터셋에도 이상 히트맵을 생성한다.
+  (unigad 패키지 사용, uniadet_paper_aligned 미사용)
 
 포맷 자동 감지 규칙:
   - <root>/<cat>/Data/               → visa
@@ -15,39 +16,44 @@ generate_heatmap.py
 few-shot 지지 이미지:
   기본적으로 각 데이터셋의 정상(train) 이미지를 사용한다.
   --support_root 를 지정하면 해당 경로의 train/good/ 이미지를 메모리 뱅크로 사용한다.
-  (예: JVM Golden Template)
+  (예: Golden Template 생성 결과 폴더)
 
 출력:
   --output_root/<category>/<original_stem>_heatmap.png  (JET 컬러 히트맵)
 
-사용 예시:
-  # MVTec 포맷 (JVM_mvtec)
-  python generate_heatmap.py \\
-      --dataset_root  JVM_mvtec \\
-      --load_path     checkpoints_260309/ckpt_trained_on_jvm.pth
+히트맵 뷰 모드 (--heatmap_mode):
+  full_image : 이미지 전체를 한 번에 리사이즈 후 추론(기본). 빠름.
+  patch_tiled: 이미지를 타일 단위로 잘라 각각 추론 후 병합. 원본 해상도에 가깝게 확인 가능.
 
-  # MVTec 포맷 + Golden Template을 few-shot support로
+사용 예시:
+  # MVTec 형식 custom 데이터셋
   python generate_heatmap.py \\
-      --dataset_root  JVM_mvtec \\
-      --support_root  JVM_goldentemplate \\
-      --load_path     checkpoints_260309/ckpt_trained_on_jvm.pth \\
+      --dataset_root  /path/to/Custom \\
+      --load_path     checkpoints/ckpt_trained_on_Custom.pth
+
+  # Golden Template을 few-shot support로
+  python generate_heatmap.py \\
+      --dataset_root  /path/to/Custom \\
+      --support_root  /path/to/Custom_goldentemplate \\
+      --load_path     checkpoints/ckpt_trained_on_Custom.pth \\
       --mode          both
 
-  # VisA
-  python generate_heatmap.py \\
-      --dataset_root  VisA \\
-      --load_path     checkpoints_260309/ckpt_trained_on_visa.pth
-
-  # BTAD
-  python generate_heatmap.py \\
-      --dataset_root  BTAD \\
-      --load_path     checkpoints_260309/ckpt_trained_on_btad.pth
+  # VisA / BTAD
+  python generate_heatmap.py --dataset_root /path/to/VisA --load_path checkpoints/ckpt_trained_on_visa.pth
+  python generate_heatmap.py --dataset_root /path/to/BTAD --load_path checkpoints/ckpt_trained_on_btad.pth
 """
 
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
+
+# UniGAD 루트를 path에 넣어 unigad 패키지 사용 (tools/ 에서 실행해도 동작)
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_UNIGAD_ROOT = _SCRIPT_DIR.parent
+if str(_UNIGAD_ROOT) not in sys.path:
+    sys.path.insert(0, str(_UNIGAD_ROOT))
 
 import numpy as np
 import torch
@@ -55,7 +61,21 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, Subset
 from PIL import Image
 
-import uniadet_paper_aligned as paper
+from unigad.models.uniadet import UniADet
+from unigad.models.multigpu import wrap_multigpu, inner, patch_feat_to_list
+from unigad.datasets.mvtec import MVTecADDataset
+from unigad.datasets.visa import VisADataset
+from unigad.datasets.btad import BTADDataset
+from unigad.engine.memory_bank import build_memory_bank, compute_fewshot_score
+from unigad.transforms import (
+    EXTRACT_LAYERS,
+    IMG_SIZE_DINOV3,
+    IMG_SIZE_DINOV2,
+    PATCH_SIZE_DINOV3,
+    PATCH_SIZE_DINOV2,
+    make_eval_transform,
+)
+from unigad.utils.checkpoint import load_ckpt
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -98,17 +118,14 @@ def discover_categories(root: Path, fmt: str) -> list[str]:
 # ──────────────────────────────────────────────────────────────────────
 # 데이터셋 로더 팩토리
 # ──────────────────────────────────────────────────────────────────────
-def load_dataset(root: str, cat: str, fmt: str, split: str = "test"):
-    """split: 'test'(평가용) 또는 'train'(support용)"""
+def load_dataset(root: str, cat: str, fmt: str, split: str, eval_transform):
+    """split: 'test'(평가용) 또는 'train'(support용). eval_transform은 main에서 img_size 기준으로 생성."""
     if fmt == "visa":
-        return paper.VisADataset(root=root, categories=[cat],
-                                 transform=paper.eval_transform)
+        return VisADataset(root=root, categories=[cat], transform=eval_transform)
     elif fmt == "btad":
-        return paper.BTADDataset(root=root, category=cat,
-                                 split=split, transform=paper.eval_transform)
+        return BTADDataset(root=root, category=cat, split=split, transform=eval_transform)
     else:  # mvtec
-        return paper.MVTecADDataset(root=root, category=cat,
-                                    split=split, transform=paper.eval_transform)
+        return MVTecADDataset(root=root, category=cat, split=split, transform=eval_transform)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -148,12 +165,12 @@ def save_heatmap(score_map: torch.Tensor, img_path: str, out_dir: Path):
 # 메모리 뱅크 구성
 # ──────────────────────────────────────────────────────────────────────
 def build_support_bank(model, support_root: str, cat: str, fmt: str,
-                       n_shot: int, device) -> list | None:
+                       n_shot: int, device, eval_transform) -> list | None:
     """
     support_root 에서 정상 이미지를 n_shot 장 로드하여 메모리 뱅크를 구성한다.
     """
     try:
-        sup_ds = load_dataset(support_root, cat, fmt, split="train")
+        sup_ds = load_dataset(support_root, cat, fmt, split="train", eval_transform=eval_transform)
     except RuntimeError as e:
         print(f"    [few-shot skip] support 데이터 로드 실패: {e}")
         return None
@@ -169,7 +186,59 @@ def build_support_bank(model, support_root: str, cat: str, fmt: str,
 
     print(f"    [few-shot] 메모리 뱅크 구성: {len(selected)}장 사용")
     sup_dl = DataLoader(Subset(sup_ds, selected), batch_size=len(selected), shuffle=False)
-    return paper.build_memory_bank(model, sup_dl, device)
+    return build_memory_bank(model, sup_dl, device)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# 패치(타일) 단위 추론 → 전체 해상도 히트맵 병합
+# ──────────────────────────────────────────────────────────────────────
+@torch.no_grad()
+def _heatmap_one_image_patch_tiled(model, img_path: str, memory_bank, args, device) -> torch.Tensor:
+    """
+    이미지를 IMG_SIZE 타일로 잘라 각 타일 추론 후 하나의 히트맵으로 병합.
+    반환: [H_orig, W_orig] CPU 텐서
+    """
+    img = Image.open(img_path).convert("RGB")
+    w_orig, h_orig = img.size
+    sz = args.img_size
+    transform = args.eval_transform
+
+    # 타일 그리드 (경계 넘어가면 패딩)
+    canvas_sum = np.zeros((h_orig, w_orig), dtype=np.float64)
+    canvas_cnt = np.zeros((h_orig, w_orig), dtype=np.float64)
+
+    for y0 in range(0, h_orig, sz):
+        for x0 in range(0, w_orig, sz):
+            x1, y1 = min(x0 + sz, w_orig), min(y0 + sz, h_orig)
+            crop = img.crop((x0, y0, x1, y1))
+            cw, ch = crop.size
+            if cw < sz or ch < sz:
+                pad_img = Image.new("RGB", (sz, sz), (0, 0, 0))
+                pad_img.paste(crop, (0, 0))
+                crop = pad_img
+            tile = transform(crop).unsqueeze(0).to(device)
+            _, seg_logit, patch_feat = model(tile)
+            seg_score_zs = F.softmax(seg_logit, dim=-1)[..., 1]
+            final_score = seg_score_zs
+            if memory_bank is not None:
+                patch_feats_list = patch_feat_to_list(patch_feat)
+                seg_score_fs = compute_fewshot_score(patch_feats_list, memory_bank, device)
+                if args.mode == "few_shot":
+                    final_score = seg_score_fs
+                else:
+                    final_score = seg_score_zs + seg_score_fs
+            H_p = tile.shape[-2] // args.patch_size
+            W_p = tile.shape[-1] // args.patch_size
+            seg_map = final_score.view(1, 1, H_p, W_p)
+            seg_map = F.interpolate(seg_map, size=(sz, sz), mode="bilinear", align_corners=False)
+            arr = seg_map[0, 0].cpu().numpy()
+            dy = min(sz, h_orig - y0)
+            dx = min(sz, w_orig - x0)
+            canvas_sum[y0 : y0 + dy, x0 : x0 + dx] += arr[:dy, :dx]
+            canvas_cnt[y0 : y0 + dy, x0 : x0 + dx] += 1.0
+
+    out = np.divide(canvas_sum, canvas_cnt, where=canvas_cnt > 0)
+    return torch.from_numpy(out.astype(np.float32))
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -182,7 +251,7 @@ def generate_for_category(model, cat: str, args, device):
 
     # ── 평가 데이터셋 로드 ────────────────────────────────────
     try:
-        full_ds = load_dataset(args.dataset_root, cat, fmt, split="test")
+        full_ds = load_dataset(args.dataset_root, cat, fmt, split="test", eval_transform=args.eval_transform)
     except RuntimeError as e:
         print(f"  [Skip] {e}")
         return
@@ -200,42 +269,50 @@ def generate_for_category(model, cat: str, args, device):
         print(f"  [Skip] target='{target}' 이미지가 없습니다: {cat}")
         return
 
-    print(f"  대상 이미지: {len(indices)}장 (target={target})")
+    print(f"  대상 이미지: {len(indices)}장 (target={target})  heatmap_mode={args.heatmap_mode}")
     ds = Subset(full_ds, indices)
-    dl = DataLoader(ds, batch_size=args.batch_size, shuffle=False,
-                    num_workers=2, pin_memory=True)
+    out_dir = Path(args.output_root) / cat
 
     # ── 메모리 뱅크 구성 (few-shot / both) ────────────────────
     memory_bank = None
     if args.mode in ("few_shot", "both"):
         support_root = args.support_root or args.dataset_root
         memory_bank  = build_support_bank(model, support_root, cat, support_fmt,
-                                          args.n_shot, device)
+                                          args.n_shot, device, args.eval_transform)
         if memory_bank is None and args.mode == "few_shot":
             print(f"  [Skip] few_shot 모드인데 메모리 뱅크 구성 실패: {cat}")
             return
 
-    # ── 추론 ──────────────────────────────────────────────────
-    out_dir   = Path(args.output_root) / cat
-    base_idx  = 0
+    # ── 추론: patch_tiled ─────────────────────────────────────
+    if args.heatmap_mode == "patch_tiled":
+        for i in indices:
+            img_path = full_ds.samples[i][0]
+            seg_map = _heatmap_one_image_patch_tiled(model, img_path, memory_bank, args, device)
+            save_heatmap(seg_map, img_path, out_dir)
+        print(f"  저장 완료: {out_dir}")
+        return
 
+    # ── 추론: full_image (기본) ────────────────────────────────
+    dl = DataLoader(ds, batch_size=args.batch_size, shuffle=False,
+                    num_workers=2, pin_memory=True)
+    base_idx = 0
     for imgs, _, _ in dl:
         imgs = imgs.to(device)
         B    = imgs.size(0)
         H, W = imgs.shape[-2], imgs.shape[-1]
-        H_p  = H // paper.PATCH_SIZE
-        W_p  = W // paper.PATCH_SIZE
+        H_p  = H // args.patch_size
+        W_p  = W // args.patch_size
 
-        cls_logit, seg_logit, patch_feats = model(imgs)
+        cls_logit, seg_logit, patch_feat = model(imgs)
+        patch_feats_list = patch_feat_to_list(patch_feat)
 
-        # Zero-shot 세그멘테이션 점수
-        anomaly_logit = seg_logit[..., 1] - seg_logit[..., 0]  # [B, N]
-        seg_score_zs  = torch.sigmoid(anomaly_logit)
-        final_score   = seg_score_zs
+        # Zero-shot 세그멘테이션 점수 (UniGAD과 동일: softmax)
+        seg_score_zs = F.softmax(seg_logit, dim=-1)[..., 1]
+        final_score  = seg_score_zs
 
         # Few-shot 점수
         if memory_bank is not None:
-            seg_score_fs = paper.compute_fewshot_score(patch_feats, memory_bank, device)
+            seg_score_fs = compute_fewshot_score(patch_feats_list, memory_bank, device)
             if args.mode == "few_shot":
                 final_score = seg_score_fs
             else:  # both
@@ -259,7 +336,7 @@ def generate_for_category(model, cat: str, args, device):
 # 인자 파싱
 # ──────────────────────────────────────────────────────────────────────
 def parse_args():
-    BASE = Path(__file__).parent
+    base = _UNIGAD_ROOT
 
     parser = argparse.ArgumentParser(
         description="Generate anomaly heatmaps for MVTec / VisA / BTAD datasets"
@@ -302,11 +379,17 @@ def parse_args():
     parser.add_argument("--backbone",       type=str, default="dinov3",
                         choices=["dinov3", "dinov2"])
     parser.add_argument("--dinov3_repo",    type=str,
-                        default=str(BASE / "dinov3"))
+                        default=str(base / "dinov3"))
     parser.add_argument("--dinov3_weights", type=str,
-                        default=str(BASE / "dinov3/pretrained/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth"))
+                        default=str(base / "dinov3/pretrained/dinov3_vitl16_pretrain_lvd1689m-8aa4cbdd.pth"))
     parser.add_argument("--layers",         nargs="+", type=int,
-                        default=paper.EXTRACT_LAYERS)
+                        default=EXTRACT_LAYERS)
+
+    # 히트맵 뷰 모드
+    parser.add_argument("--heatmap_mode",  type=str, default="full_image",
+                        choices=["full_image", "patch_tiled"],
+                        help="full_image: 이미지 전체를 한 번에 리사이즈 후 추론(기본). "
+                             "patch_tiled: 이미지를 타일 단위로 잘라 각각 추론 후 합쳐서 전체 해상도 히트맵 생성")
 
     # 기타
     parser.add_argument("--batch_size",     type=int, default=4)
@@ -323,16 +406,15 @@ def main():
 
     # ── 백본 설정 ──────────────────────────────────────────────
     if args.backbone == "dinov3":
-        paper.IMG_SIZE   = paper.IMG_SIZE_DINOV3
-        paper.PATCH_SIZE = paper.PATCH_SIZE_DINOV3
+        args.img_size   = IMG_SIZE_DINOV3
+        args.patch_size = PATCH_SIZE_DINOV3
     else:
-        paper.IMG_SIZE   = paper.IMG_SIZE_DINOV2
-        paper.PATCH_SIZE = paper.PATCH_SIZE_DINOV2
-    paper.eval_transform = paper.make_eval_transform(paper.IMG_SIZE)
-    paper.mask_transform = paper.make_mask_transform(paper.IMG_SIZE)
+        args.img_size   = IMG_SIZE_DINOV2
+        args.patch_size = PATCH_SIZE_DINOV2
+    args.eval_transform = make_eval_transform(args.img_size)
 
     print(f"\n사용 장치: {device}")
-    print(f"백본: {args.backbone.upper()} | IMG_SIZE={paper.IMG_SIZE}, PATCH_SIZE={paper.PATCH_SIZE}")
+    print(f"백본: {args.backbone.upper()} | IMG_SIZE={args.img_size}, PATCH_SIZE={args.patch_size}")
 
     # ── 포맷 결정 ──────────────────────────────────────────────
     dataset_root = Path(args.dataset_root)
@@ -350,19 +432,20 @@ def main():
     print(f"카테고리: {categories}")
 
     # ── 모델 로드 ──────────────────────────────────────────────
-    model = paper.UniADet(
+    model = UniADet(
         layers=args.layers,
         backbone=args.backbone,
         dinov3_repo=args.dinov3_repo,
         dinov3_weights=args.dinov3_weights,
+        patch_size=args.patch_size,
     )
-    ckpt = torch.load(args.load_path, map_location="cpu")
-    model.classifiers.load_state_dict(ckpt)
+    model = wrap_multigpu(model)
+    load_ckpt(model, args.load_path)
     model.to(device).eval()
-    model.backbone.eval()
+    inner(model).backbone.eval()
     print(f"[Checkpoint] 로드: {args.load_path}")
 
-    print(f"\n모드: {args.mode}  |  대상: {args.target}  |  출력: {args.output_root}")
+    print(f"\n모드: {args.mode}  |  heatmap_mode: {args.heatmap_mode}  |  대상: {args.target}  |  출력: {args.output_root}")
     if args.support_root:
         print(f"few-shot support: {args.support_root} (format={args.support_format or fmt})")
 
@@ -378,3 +461,9 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+## 전체 이미지 한 번에 (기본, 빠름)
+# python generate_heatmap.py --dataset_root /home/user/jupyter/bk/paperworks/Data/PXK --load_path checkpoints/ckpt_trained_on_PXK.pth --output_root outputs
+
+# 타일 단위로 잘라서 원본 해상도에 가깝게
+# python generate_heatmap.py --dataset_root PXK --load_path checkpoints/ckpt_trained_on_PXK.pth --output_root out --heatmap_mode patch_tiled

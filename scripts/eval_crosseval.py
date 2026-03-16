@@ -2,12 +2,13 @@
 """
 scripts/eval_crosseval.py
 ==========================
-학습된 4개 가중치(MVTec/VisA/JVM/BTAD)를 로드하여
+학습된 4개 가중치(MVTec/VisA/Custom/BTAD)를 로드하여
 4개 데이터셋 전체에 대해 크로스 평가를 수행한다.
 
 사용 예시:
     python scripts/eval_crosseval.py
-    python scripts/eval_crosseval.py --ckpts mvtec --eval_datasets jvm
+    python scripts/eval_crosseval.py --ckpts mvtec --eval_datasets custom
+    python scripts/eval_crosseval.py --ckpts custom --eval_datasets custom
     python scripts/eval_crosseval.py --mode zero_shot
 """
 from __future__ import annotations
@@ -41,10 +42,11 @@ from unigad.utils.metrics       import print_summary_table, print_cross_summary
 BASE      = Path(__file__).parent.parent
 DATA_ROOT = BASE.parent / "Data"
 
+# 체크포인트 파일명 (custom은 custom_root 폴더명으로 동적 결정, --custom_ckpt로 덮어쓰기 가능)
 CKPT_FILES = {
     "mvtec": "ckpt_trained_on_mvtec.pth",
     "visa":  "ckpt_trained_on_visa.pth",
-    "custom":   "ckpt_trained_on_jvm.pth",
+    "custom": None,  # custom_root 기반 또는 --custom_ckpt 사용
     "btad":  "ckpt_trained_on_btad.pth",
 }
 
@@ -53,7 +55,10 @@ def parse_args():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("--mvtec_root",  default=str(DATA_ROOT / "MVTec"))
     p.add_argument("--visa_root",   default=str(DATA_ROOT / "VisA"))
-    p.add_argument("--custom_root",    default=str(DATA_ROOT / "JVM_mvtec"))
+    p.add_argument("--custom_root",    default=str(DATA_ROOT / "Custom"),
+                    help="MVTec 형식 custom 데이터셋 루트 (예: Data/Custom)")
+    p.add_argument("--custom_ckpt",    type=str, default=None,
+                    help="custom용 체크포인트 파일명 (기본: ckpt_trained_on_<custom_root 폴더명>.pth)")
     p.add_argument("--btad_root",   default=str(DATA_ROOT / "BTAD"))
     p.add_argument("--ckpt_dir",    default=str(BASE / "checkpoints"))
     p.add_argument("--result_path", default=str(BASE / "results_crosseval.json"))
@@ -69,7 +74,7 @@ def parse_args():
     p.add_argument("--eval_batch_size", type=int, default=4)
     p.add_argument("--mvtec_categories", nargs="+", default=MVTEC_CATEGORIES)
     p.add_argument("--visa_categories",  nargs="+", default=None)
-    p.add_argument("--jvm_categories",   nargs="+", default=None)
+    p.add_argument("--custom_categories",   nargs="+", default=None)
     p.add_argument("--btad_categories",  nargs="+", default=None)
     p.add_argument("--ckpts",         nargs="+",
                    choices=list(CKPT_FILES.keys()),
@@ -202,8 +207,8 @@ def main():
         d.name for d in sorted(Path(args.visa_root).iterdir())
         if d.is_dir() and (d / "Data").exists()
     ]
-    jvm_cats  = args.jvm_categories  or [
-        d.name for d in sorted(Path(args.jvm_root).iterdir())
+    custom_cats  = args.custom_categories  or [
+        d.name for d in sorted(Path(args.custom_root).iterdir())
         if d.is_dir() and (d / "test").exists()
     ]
     btad_cats = args.btad_categories or [
@@ -213,8 +218,15 @@ def main():
 
     all_results = {}
 
+    def get_ckpt_path(ckpt_tag):
+        if ckpt_tag == "custom":
+            if args.custom_ckpt:
+                return Path(args.ckpt_dir) / args.custom_ckpt
+            return Path(args.ckpt_dir) / f"ckpt_trained_on_{Path(args.custom_root).name}.pth"
+        return Path(args.ckpt_dir) / CKPT_FILES[ckpt_tag]
+
     for ckpt_tag in args.ckpts:
-        ckpt_path = Path(args.ckpt_dir) / CKPT_FILES[ckpt_tag]
+        ckpt_path = get_ckpt_path(ckpt_tag)
         if not ckpt_path.exists():
             print(f"[Skip] 체크포인트 없음: {ckpt_path}"); continue
 
@@ -237,9 +249,9 @@ def main():
                                            args.mvtec_categories, device, args, "mvtec")
             elif ds_tag == "visa":
                 buckets = eval_visa(model, args.visa_root, visa_cats, device, args)
-            elif ds_tag == "jvm":
-                buckets = eval_mvtec_style(model, args.jvm_root,
-                                           jvm_cats, device, args, "jvm")
+            elif ds_tag == "custom":
+                buckets = eval_mvtec_style(model, args.custom_root,
+                                           custom_cats, device, args, "custom")
             elif ds_tag == "btad":
                 buckets = eval_btad(model, args.btad_root, btad_cats, device, args)
             else:

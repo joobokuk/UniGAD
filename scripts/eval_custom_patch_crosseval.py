@@ -41,9 +41,9 @@ CKPT_FILES = {
 
 def parse_args():
     p = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    p.add_argument("--custom_root",       default=str(DATA_ROOT / "JVM_mvtec"))
+    p.add_argument("--custom_root",       default=str(DATA_ROOT / "Custom"))
     p.add_argument("--support_root",   default=None)
-    p.add_argument("--golden_root",    default=str(DATA_ROOT / "JVM_goldentemplate"))
+    p.add_argument("--golden_root",    default=str(DATA_ROOT / "Custom_goldentemplate"))
     p.add_argument("--ckpt_dir",       default=str(BASE / "checkpoints"))
     p.add_argument("--result_path",    default=str(BASE / "results_custom_patch_crosseval.json"))
     p.add_argument("--models",         nargs="+",
